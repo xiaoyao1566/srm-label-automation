@@ -1,0 +1,19 @@
+# 依赖清单
+#
+# ⚠️ numpy / onnxruntime / ddddocr 必须**一起锁版本**，不能让 pip 自由发挥：
+#   不锁 numpy 的话 pip 会把它升到 2.x，而 onnxruntime 1.16.3 是拿 numpy 1.x 编译的，
+#   一升就报 "A module that was compiled using NumPy 1.x cannot be run in NumPy 2.x"，
+#   验证码识别模块直接 import 不了。
+#   opencv-python 是 ddddocr 的间接依赖，同样必须锁 —— 5.x 要求 numpy>=2，与上面冲突。
+
+# ---- 验证码识别三件套：顺序和版本都别动 ----
+numpy<2
+onnxruntime==1.16.3
+ddddocr==1.6.1
+opencv-python==4.11.0.86
+
+# ---- 其余依赖 ----
+playwright==1.62.0     # 用 channel="chrome" 跑系统 Chrome，不需要 playwright install
+openpyxl==3.1.5
+pywin32==312           # 打印队列 / 打印服务事件 / WPS COM 都靠它
+pillow==12.3.0

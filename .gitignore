@@ -1,0 +1,23 @@
+# ⛔ 私有资料：一律不入库
+_private/
+*.bak
+*.tmp
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 运行时产物
+logs/
+*.log
+出纸核对_*.txt
+演示运行日志.txt
+# 靶站写出来的"出纸记录"—— 每次跑都会变，属于运行产物
+*.jsonl
+spool*.json
+
+# 本机相关（打印机名、盘符、用户名等，每台机器都不一样）
+local_config.json
+本机配置.json

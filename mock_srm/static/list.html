@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>标签详情 · 演示门户</title>
+<style>
+  :root { --line:#e3e6eb; --ink:#1f2733; --sub:#6b7684; --brand:#2b6cf6; --danger:#d93a3a; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.6 "Microsoft YaHei",system-ui,sans-serif; color:var(--ink); background:#f5f7fa; }
+  header { background:#fff; border-bottom:1px solid var(--line); padding:10px 18px; display:flex;
+           align-items:center; gap:14px; }
+  header b { font-size:15px; }
+  header .user { margin-left:auto; color:var(--sub); }
+  .wrap { padding:16px 18px; }
+  .toolbar { display:flex; gap:8px; margin-bottom:12px; }
+  button { font:inherit; padding:6px 14px; border:1px solid var(--line); background:#fff;
+           border-radius:4px; cursor:pointer; }
+  button:hover { border-color:#b9c2cf; }
+  button.primary { background:var(--brand); border-color:var(--brand); color:#fff; }
+  .panel { background:#fff; border:1px solid var(--line); border-radius:6px; padding:14px 16px;
+           margin-bottom:12px; display:grid; grid-template-columns:repeat(4,minmax(190px,1fr)); gap:10px 16px; }
+  .panel label { display:flex; flex-direction:column; gap:4px; color:var(--sub); font-size:13px; }
+  .panel input { font:inherit; padding:5px 8px; border:1px solid var(--line); border-radius:4px; }
+  .panel .date-box { display:flex; gap:6px; }
+  .panel .date-box input { flex:1; background:#fafbfc; }
+  .panel .date-box button { padding:5px 8px; }
+  .hint { grid-column:1/-1; color:var(--danger); min-height:20px; font-size:13px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:6px; overflow:hidden; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; white-space:nowrap; }
+  th { background:#fafbfc; color:var(--sub); font-weight:600; }
+  .vxe-header--column { display:table-cell; }
+  .vxe-cell--checkbox { display:flex; align-items:center; }
+  /* ⚠️ 坑①：固定列表头是**另一份 DOM**，而且它是隐藏的。
+     详情见 docs/pitfalls.md —— 用 .first 会点到这一份，点了没反应/超时。 */
+  .vxe-table--fixed-left-wrapper { display:none; }
+  .pager { display:flex; align-items:center; gap:14px; padding:10px 12px; color:var(--sub); }
+  .pager .spacer { margin-left:auto; }
+  .modal-mask { position:fixed; inset:0; background:rgba(20,26,34,.35); display:flex;
+                align-items:center; justify-content:center; }
+  .modal { background:#fff; border-radius:8px; padding:20px 24px; min-width:320px; }
+  .modal h3 { margin:0 0 10px; font-size:15px; }
+  .modal .acts { display:flex; gap:10px; justify-content:flex-end; margin-top:16px; }
+  .cal { position:absolute; background:#fff; border:1px solid var(--line); border-radius:6px;
+         padding:8px; box-shadow:0 6px 18px rgba(0,0,0,.12); z-index:20; }
+  .cal .grid { display:grid; grid-template-columns:repeat(7,26px); gap:2px; }
+  .cal .grid span { text-align:center; padding:3px 0; cursor:pointer; border-radius:3px; }
+  .cal .grid span:hover { background:#eef3ff; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<header>
+  <b>标签详情</b>
+  <span class="user" id="who">—</span>
+</header>
+
+<div class="wrap">
+  <div class="toolbar">
+    <button id="btn-advanced">高级查询</button>
+    <button id="btn-search" class="primary">搜索</button>
+    <button id="btn-add">新增</button>
+    <button id="btn-print" class="primary">打印标签</button>
+  </div>
+
+  <!-- ⚠️ 坑②：面板里**按回车会毁掉整个面板**。
+       真实站点上回车会触发查询并重置面板，于是"填了 7 个条件、按回车提交"
+       会变成"一个条件都没生效"。正确做法是失焦（Tab）提交，全部填完再点一次【搜索】。 -->
+  <div class="panel hidden" id="panel">
+    <label>物料编码<input data-f="itemCode" autocomplete="off"></label>
+    <label>采购订单号<input data-f="poNum" autocomplete="off"></label>
+    <label>出货日期从
+      <span class="date-box"><input data-f="shipFrom" readonly placeholder="点右边日历来选">
+        <button type="button" data-cal="shipFrom">📅</button></span></label>
+    <label>出货日期至
+      <span class="date-box"><input data-f="shipTo" readonly placeholder="点右边日历来选">
+        <button type="button" data-cal="shipTo">📅</button></span></label>
+    <label>生产日期从
+      <span class="date-box"><input data-f="prodFrom" readonly placeholder="点右边日历来选">
+        <button type="button" data-cal="prodFrom">📅</button></span></label>
+    <label>生产日期至
+      <span class="date-box"><input data-f="prodTo" readonly placeholder="点右边日历来选">
+        <button type="button" data-cal="prodTo">📅</button></span></label>
+    <label>标签类型
+      <select data-f="labelType"><option value="">全部</option><option>内箱标签</option><option>外箱标签</option></select></label>
+    <label>标签状态
+      <select data-f="labelStatus"><option value="">全部</option><option>生效</option><option>作废</option></select></label>
+    <div class="hint" id="panelHint"></div>
+  </div>
+
+  <div class="card">
+    <!-- ⚠️ 坑①：固定列那一份表头是**另一份 DOM**，DOM 里排在最前面，而且是隐藏的。
+         用 `.vxe-header--column .vxe-cell--checkbox` 取第一个会取到它 ——
+         点击会超时或"点了没反应"。必须先 :visible 再取第一个。
+         注意这里是**独立的 table**：把 div/th 塞进 tr 是非法 HTML，浏览器会把节点拎出去。 -->
+    <table class="vxe-table--fixed-left-wrapper" aria-hidden="true">
+      <thead><tr><th class="vxe-header--column"><div class="vxe-cell--checkbox">
+        <input type="checkbox" id="selectAllHidden" aria-label="全选（固定列副本，隐藏）">
+      </div></th></tr></thead>
+    </table>
+
+    <table>
+      <thead>
+        <tr id="headRow">
+          <th class="vxe-header--column" style="width:42px"><div class="vxe-cell--checkbox">
+            <input type="checkbox" id="selectAll" aria-label="全选">
+          </div></th>
+          <th>料号</th><th>采购订单号</th><th>标签号</th><th>标签类型</th>
+          <th>生产日期</th><th>出货日期</th><th>本次分配数量</th><th>创建时间</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+
+    <div class="pager">
+      <span class="ivu-page-total" id="totalText">共 0 条</span>
+      <button id="prev">上一页</button>
+      <span id="pageText">第 1 页</span>
+      <button id="next">下一页</button>
+      <span class="spacer"></span>
+      <!-- 真实站点上这个数字是关键对账口径：勾选数必须和它一致 -->
+      <span id="crossPage">跨页选择总行数 0</span>
+    </div>
+  </div>
+</div>
+
+<!-- 坑④：点【确认打印】**不会出纸**。真实按钮在另一个上下文里（真机上是浏览器打印预览 UI，
+     DOM 点不到，只能靠 Windows UI Automation）。这里用"另一个窗口"复刻这个本质。 -->
+<div class="modal-mask hidden" id="confirmModal">
+  <div class="modal">
+    <h3>打印确认</h3>
+    <div id="confirmBody">—</div>
+    <div class="acts">
+      <button id="btn-cancel">取消</button>
+      <button id="btn-confirm" class="primary">确认打印</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const 状态 = { page:1, pageSize:20, total:0, rows:[], selected:new Set(), filters:{} };
+
+function 取值(f){ const el=document.querySelector(`[data-f="${f}"]`); return el?el.value.trim():""; }
+function 当前筛选(){ const o={}; document.querySelectorAll("[data-f]").forEach(el=>{ if(el.value.trim()) o[el.dataset.f]=el.value.trim(); }); return o; }
+
+async function 载入(页){
+  状态.page = 页 || 状态.page;
+  const q = new URLSearchParams(Object.assign({}, 当前筛选(), {page:状态.page}));
+  const r = await fetch("/api/labels?"+q.toString());
+  const d = await r.json();
+  状态.rows = d.rows; 状态.total = d.total;
+  渲染();
+}
+
+function 渲染(){
+  const tb = document.getElementById("tbody");
+  tb.innerHTML = 状态.rows.map(r=>`
+    <tr class="vxe-body--row" data-id="${r.id}" data-item="${r.itemCode}" data-po="${r.poNum}">
+      <td class="vxe-body--column"><div class="vxe-cell--checkbox">
+        <input type="checkbox" class="rowCheck" data-id="${r.id}" ${状态.selected.has(r.id)?"checked":""}>
+      </div></td>
+      <td>${r.itemCode}</td><td>${r.poNum}</td><td>${r.labelCode}</td><td>${r.labelTypeName}</td>
+      <td>${r.productionDate}</td><td>${r.shipmentDate}</td>
+      <td>${r.labelAllocationQty}</td><td>${r.creationDate}</td>
+    </tr>`).join("");
+  document.querySelectorAll(".rowCheck").forEach(cb=>{
+    cb.addEventListener("change", ()=>{
+      const id = Number(cb.dataset.id);
+      cb.checked ? 状态.selected.add(id) : 状态.selected.delete(id);
+      刷新计数();
+    });
+  });
+  document.getElementById("totalText").textContent = `共 ${状态.total} 条`;
+  document.getElementById("pageText").textContent =
+      `第 ${状态.page} 页 / 共 ${Math.max(1, Math.ceil(状态.total/状态.pageSize))} 页`;
+  刷新计数();
+}
+
+function 刷新计数(){
+  document.getElementById("crossPage").textContent = `跨页选择总行数 ${状态.selected.size}`;
+  // 本页全选状态（注意：全选只作用于**当前页**，这正是"必须逐页勾选"的原因）
+  const 本页 = 状态.rows.map(r=>r.id);
+  const 全选 = 本页.length>0 && 本页.every(id=>状态.selected.has(id));
+  const sa = document.getElementById("selectAll");
+  if (sa) sa.checked = 全选;
+}
+
+// ---- 坑①：隐藏的那一份全选框**故意不绑任何事件**。
+//      用 .first 点到它 → 既不报错也不生效，页面上什么都没发生。
+document.getElementById("selectAllHidden").addEventListener("click", e=>{ e.preventDefault(); });
+
+document.getElementById("selectAll").addEventListener("change", e=>{
+  const 本页 = 状态.rows.map(r=>r.id);
+  本页.forEach(id => e.target.checked ? 状态.selected.add(id) : 状态.selected.delete(id));
+  渲染();
+});
+
+// ---- 坑②：回车毁面板 ----
+document.querySelectorAll("#panel input, #panel select").forEach(el=>{
+  el.addEventListener("keydown", e=>{
+    if (e.key === "Enter") {
+      e.preventDefault();
+      // 真实站点上这一步会把面板重置掉，条件一个都不剩。
+      document.querySelectorAll("[data-f]").forEach(x=>{ x.value = ""; });
+      document.getElementById("panel").classList.add("hidden");
+      document.getElementById("panelHint").textContent = "";
+      载入(1);
+      document.title = "面板已被回车重置";      // 给自动化留一个可观察的痕迹
+    }
+  });
+});
+
+function 提示(t, 红){
+  const el = document.getElementById("panelHint");
+  el.textContent = t; el.style.color = 红 ? "var(--danger)" : "var(--sub)";
+}
+
+document.getElementById("btn-advanced").addEventListener("click", ()=>{
+  document.getElementById("panel").classList.remove("hidden");
+});
+document.getElementById("btn-search").addEventListener("click", ()=>载入(1));
+document.getElementById("prev").addEventListener("click", ()=>{ if(状态.page>1) 载入(状态.page-1); });
+document.getElementById("next").addEventListener("click", ()=>{
+  if (状态.page*状态.pageSize < 状态.total) 载入(状态.page+1);
+});
+
+// ---- 坑⑤：日期框 readonly，只能点日历挑 ----
+let 当前日历 = null;
+document.querySelectorAll("[data-cal]").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    if (当前日历) { 当前日历.remove(); 当前日历=null; }
+    const 字段 = btn.dataset.cal;
+    const box = document.createElement("div");
+    box.className = "cal";
+    // 固定给三天可选，够演示"必须点日历"这件事
+    const 年 = 2026, 月 = 10, 天数 = new Date(年, 月, 0).getDate();
+    const 天 = Array.from({length:天数}, (_, i) => {
+      const d = i + 1;
+      return `${年}-${String(月).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    });
+    box.innerHTML = `<div class="grid">${天.map(d=>`<span data-d="${d}">${d.slice(8)}</span>`).join("")}</div>`;
+    box.style.left = btn.getBoundingClientRect().left + "px";
+    box.style.top = (btn.getBoundingClientRect().bottom + window.scrollY + 4) + "px";
+    document.body.appendChild(box);
+    当前日历 = box;
+    box.querySelectorAll("span[data-d]").forEach(s=>{
+      s.addEventListener("click", ()=>{
+        const input = document.querySelector(`[data-f="${字段}"]`);
+        input.value = s.dataset.d;
+        input.dispatchEvent(new Event("change", {bubbles:true}));
+        box.remove(); 当前日历 = null;
+      });
+    });
+  });
+});
+
+// ---- 打印：确认打印 → 另一个窗口 → 那个窗口里的【打印】才是真的出纸 ----
+document.getElementById("btn-print").addEventListener("click", ()=>{
+  if (状态.selected.size === 0) { 提示("请先勾选要打印的标签", true); return; }
+  document.getElementById("confirmBody").textContent =
+      `已勾选 ${状态.selected.size} 行，确认要打印这些标签吗？`;
+  document.getElementById("confirmModal").classList.remove("hidden");
+});
+document.getElementById("btn-cancel").addEventListener("click", ()=>{
+  document.getElementById("confirmModal").classList.add("hidden");
+});
+document.getElementById("btn-confirm").addEventListener("click", async ()=>{
+  document.getElementById("confirmModal").classList.add("hidden");
+  const ids = Array.from(状态.selected);
+  // ⚠️ 必须先**同步**把窗口开出来，再去 await 拿数据。
+  //    浏览器只认"用户手势"当口打开的窗口；等 await 回来再 window.open 会被弹窗拦截器挡掉，
+  //    表现是"确认打印点了、什么都没发生" —— 这种失败极难排查。
+  const 预览窗 = window.open("", "_blank", "width=560,height=360");
+  const r = await fetch("/api/print", {method:"POST", headers:{"Content-Type":"application/json"},
+                                       body: JSON.stringify({ids})});
+  const d = await r.json();
+  if (!d.ok) {
+    if (预览窗) 预览窗.close();
+    提示(d.msg || "提交失败", true);
+    return;
+  }
+  // ⚠️ 到这里为止**一张纸都不会出去**。真实按钮在下面这个新窗口里。
+  if (预览窗) 预览窗.location = `/printpreview?job=${d.jobId}&pages=${d.pages}&count=${d.count}`;
+});
+
+// ---- 复刻真实 vxe 的行为：**点整个格子**就能勾选（不是只能点那个小方块）----
+// 这一条很关键：真机上验证过的选择器是 `.vxe-header--column .vxe-cell--checkbox`，
+// 它指的是那个**格子 div**，而不是里面的 input。靶站必须一样，否则"沿用真机选择器"就假了。
+document.addEventListener("click", e => {
+  if (e.target.matches("input[type=checkbox]")) return;   // 点的就是原生 input，走原生路径
+  const cell = e.target.closest(".vxe-cell--checkbox");
+  if (!cell) return;
+  const input = cell.querySelector("input[type=checkbox]");
+  if (!input) return;
+  input.checked = !input.checked;
+  input.dispatchEvent(new Event("change", {bubbles:true}));
+});
+
+fetch("/api/health").then(r=>r.json()).then(()=>{}).catch(()=>{});
+载入(1);
+</script>
+</body>
+</html>
