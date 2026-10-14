@@ -49,11 +49,17 @@ for _流 in (sys.stdout, sys.stderr):
 # 但"宁可多报"有个限度：**假命中比漏报更能坏事** ——
 # 一份总在报警的报告会训练人直接忽略它。所以下面每条判据都刻意写窄：
 类别 = [
-    # 网址：忽略两类**不是数据**的 http 串：
+    # 网址：忽略三类**不是数据**的 http 串：
     #   ① 回环地址 —— 靶站/演示本来就跑在 127.0.0.1；
     #   ② XML/SVG 命名空间 —— `xmlns="http://www.w3.org/2000/svg"` 是标签规范的一部分，
     #      每个 SVG 里都有一份，认它等于每次都在报告里刷一条假命中。
-    ("URL网址",      re.compile(r"https?://(?!127\.0\.0\.1|localhost|0\.0\.0\.0|\[::1\]|www\.w3\.org|schemas\.)[^\s\"'<>)\]}]+")),
+    #   ③ 仓库自己的**公开**链接 —— README 顶上的 CI badge / license badge 指向
+    #      github.com 与 shields.io。那是公开站点，不是客户门户地址；
+    #      不放过它们，每次发布都得为它们写一条假豁免，反而把豁免表用坏了。
+    #      白名单只加"公开站点"，客户门户那种专有域名照旧一律命中。
+    #      ⚠️ 负向断言是锚在 `://` 之后的 —— 所以**带子域的也要单独列**
+    #         （`shields\.io` 挡不住 `img.shields.io`，实测漏了一条）。
+    ("URL网址",      re.compile(r"https?://(?!127\.0\.0\.1|localhost|0\.0\.0\.0|\[::1\]|www\.w3\.org|schemas\.|github\.com|githubusercontent\.com|shields\.io|img\.shields\.io)[^\s\"'<>)\]}]+")),
     ("UNC网络路径",  re.compile(r"\\\\[^\s\"'<>)\]}]+")),
     ("绝对路径",     re.compile(r"[A-Za-z]:\\[^\s\"'<>)\]}]+")),
     ("公司名",       re.compile(r"[\u4e00-\u9fa5]{2,12}(?:有限公司|股份有限公司|集团)")),

@@ -1,5 +1,8 @@
 # 供应商门户标签自动化 · 可复现演示
 
+![验证](https://github.com/xiaoyao1566/srm-label-automation/actions/workflows/verify.yml/badge.svg)
+![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
+
 > 一个"网页自动化 + 打印出纸"的完整工程样例。
 > **clone 下来一条命令就能跑通**，不需要真门户、不需要打印机、不需要任何真实业务数据。
 
