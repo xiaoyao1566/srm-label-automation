@@ -1,0 +1,22 @@
+# 原项目（真实门户 + 真打印机）才需要的依赖
+# ============================================================================
+# ⚠️ 作品集演示**用不到这些**（仓库里没有任何一处 import 它们）。
+#    留在这里，是为了把这几条教训一起留下来 —— 它们是真金白银踩出来的。
+#
+# ⚠️ numpy / onnxruntime / ddddocr 必须**一起锁版本**，不能让 pip 自由发挥：
+#    不锁 numpy 的话 pip 会把它升到 2.x，而 onnxruntime 1.16.3 是拿 numpy 1.x
+#    编译的，一升就报：
+#      "A module that was compiled using NumPy 1.x cannot be run in NumPy 2.x"
+#    验证码识别模块直接 import 不了。
+#    opencv-python 是 ddddocr 的间接依赖，同样必须锁 —— 5.x 要求 numpy>=2，
+#    与上面直接冲突。
+
+# ---- 验证码识别三件套：顺序和版本都别动 ----
+numpy<2
+onnxruntime==1.16.3
+ddddocr==1.6.1
+opencv-python==4.11.0.86
+
+# ---- 表格与图像 ----
+openpyxl==3.1.5
+pillow==12.3.0

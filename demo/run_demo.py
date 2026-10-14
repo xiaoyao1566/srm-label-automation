@@ -9,6 +9,7 @@
 用法：
     python demo/run_demo.py                # 无头模式
     python demo/run_demo.py --有头          # 看着它跑（录屏用）
+    python demo/run_demo.py --截图          # 顺手把关键界面存成 PNG（README 里的图就是这么来的）
     python demo/run_demo.py --网址 http://127.0.0.1:8770
 退出码：0 = 全流程通过；1 = 有步骤没通过。
 """
@@ -99,6 +100,26 @@ def 提示(文本: str) -> None:
     log("─" * 60)
 
 
+def 截图器(开启: bool, 目录: str):
+    """返回一个 ``(页面, 名字) -> None`` 的截图器；没开启就返回 None。
+
+    为什么做成"可选回调"：截图只服务于 README 出图，跟演示逻辑无关。
+    没开 ``--截图`` 时这条路径整个不存在 —— 演示行为与不传参数时完全一致。
+    """
+    if not 开启:
+        return None
+    os.makedirs(目录, exist_ok=True)
+
+    def 拍(页面, 名字: str) -> None:
+        try:
+            页面.screenshot(path=os.path.join(目录, 名字 + ".png"))
+            log("[截图] 已存 %s.png" % 名字)
+        except Exception as e:
+            log("[截图] %s 失败（不影响演示）：%s" % (名字, e))
+
+    return 拍
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description="靶站端到端演示")
     p.add_argument("--网址", default="http://127.0.0.1:8770")
@@ -106,7 +127,10 @@ def main() -> int:
     p.add_argument("--慢动作", type=int, default=0, help="每步放慢多少毫秒")
     p.add_argument("--码流文件", default=os.path.join(本文件目录, "spool.jsonl"))
     p.add_argument("--不复用靶站", action="store_true", help="不在本脚本里自动起靶站")
+    p.add_argument("--截图", action="store_true", help="把关键界面存成 PNG（README 出图用）")
+    p.add_argument("--图片目录", default=os.path.join(仓库根, "docs", "images"))
     a = p.parse_args()
+    截图 = 截图器(a.截图, a.图片目录)
 
     os.environ["SITE_URL"] = a.网址
     cfg = 载入()
@@ -137,6 +161,9 @@ def main() -> int:
         # ---------------- 起浏览器 + 登录 ----------------
         t0 = time.time()
         管理器, 浏览器, 上下文, 页面 = pages.起浏览器(cfg, 有头=a.有头, 慢动作=a.慢动作)
+        if 截图:
+            页面.goto(a.网址.rstrip("/") + "/login", wait_until="domcontentloaded")
+            截图(页面, "01-login")
         pages.登录(页面, cfg, 读验证码=读靶站验证码)
         pages.进列表页(页面, cfg)
         计时["打开系统+登录+进列表页"] = time.time() - t0
@@ -144,6 +171,8 @@ def main() -> int:
 
         面板 = 高级查询面板(页面, cfg, 账)
         表格 = 标签表格(页面, cfg, 账)
+        if 截图:
+            截图(页面, "02-list")
 
         # ---------------- 第一轮：单个料号（顺带验"值记忆"）----------------
         提示("第一轮：按料号+订单+生产日期筛选（日期必须点日历，不能打字）")
@@ -181,12 +210,14 @@ def main() -> int:
         实勾 = 表格.跨页全选()
         计时["跨页全选（%d 行 / %d 页）" % (应勾, (应勾 + 19) // 20)] = time.time() - t0
         assert 实勾 == 应勾, "勾选数 %d 与共 %d 条不一致" % (实勾, 应勾)
+        if 截图:
+            截图(页面, "03-cross-page-42")
         通过.append("跨页全选对账通过（%d = %d）" % (实勾, 应勾))
 
         # ---------------- 提交打印 + 验证出纸 ----------------
         提示("第三轮：提交打印 —— 注意【确认打印】本身不出纸，真按钮在另一个窗口里")
         t0 = time.time()
-        结果 = printing.打印并验证(页面, cfg, 表格, 证据源, 靶站打印机, 账)
+        结果 = printing.打印并验证(页面, cfg, 表格, 证据源, 靶站打印机, 账, 拍照=截图)
         计时["提交打印并等到出纸证据"] = time.time() - t0
         log("[演示] 打印结果：提交=%s，%s" % (结果.提交, 结果.说明))
         assert 结果.提交, "没有拿到出纸证据：%s" % 结果.说明

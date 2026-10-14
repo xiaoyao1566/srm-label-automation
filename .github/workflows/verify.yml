@@ -1,0 +1,45 @@
+name: 验证
+
+# 这个仓库的卖点是"判据独立、真的跑过"，所以把它自己拉起来验一遍：
+# 靶站差分验证是**双向**的（错的写法必须失败、对的写法必须成功），
+# 演示里还要拿到"出纸记录"这个独立证据。
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  PYTHONIOENCODING: utf-8
+
+jobs:
+  验证:
+    # ⚠️ 必须是 windows：pywin32 只有 Windows 轮子；演示还要用系统 Chrome
+    runs-on: windows-latest
+    steps:
+      - name: 取代码
+        uses: actions/checkout@v4
+
+      - name: 装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: 装依赖（只有两个：playwright + pywin32）
+        run: pip install -r requirements.txt
+
+      - name: 发布闸门（公开仓库里没有私有词表，只查目录 / 凭证 / 通用规则）
+        run: python tools/pre_publish_check.py
+
+      - name: 闸门自己的回归测试（GBK 崩溃 + 命中数被同行数字污染）
+        run: python tools/verify_publish_gate.py
+
+      - name: 出纸证据验证（CI 上没有打印机，真实数据那半会自动跳过）
+        run: python tools/verify_evidence.py
+
+      - name: 靶站差分验证（错的写法必须失败 / 对的写法必须成功）
+        run: python tools/verify_pitfalls.py
+
+      - name: 端到端演示
+        run: python demo/run_demo.py
