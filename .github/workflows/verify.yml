@@ -14,7 +14,10 @@ env:
   PYTHONIOENCODING: utf-8
 
 jobs:
-  验证:
+  # ⚠️ job 的键名（id）只能用 字母/数字/-/_ —— 写中文会让整个 workflow 变成非法、
+  #    运行直接 0 个 job 失败（实测踩过）。中文请放在 name: 里。
+  verify:
+    name: 验证套件
     # ⚠️ 必须是 windows：pywin32 只有 Windows 轮子；演示还要用系统 Chrome
     runs-on: windows-latest
     steps:
